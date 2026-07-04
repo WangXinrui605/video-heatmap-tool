@@ -1,72 +1,68 @@
 # Video Heatmap Tool for Gaze Data
 
-This project develops a video heatmap tool for TXT-based eye-tracking recordings in the provided Face-to-Face dataset.
+This is my dissertation project prototype for generating heatmap visualisations from eye-tracking gaze data and scene camera videos.
 
-The current implementation focuses on:
+At the moment I am focusing on the `Face-to-Face` part of the provided demo data. The current version works with the `.txt` gaze data files and the corresponding scene camera videos. The JSON files in the `Augmented Reality` folder are not included in the first version.
 
-- reading Dikablis `.txt` gaze data;
-- extracting gaze coordinates for the scene camera video;
-- validating gaze coordinates by drawing gaze points over video frames;
-- preparing the pipeline for final heatmap image and heatmap development video outputs.
+## Current Aim
 
-The `Augmented Reality` JSON files are out of scope for now, following the supervisor's instruction.
+The aim is to build a tool that can:
+
+- read gaze coordinates from a Dikablis `.txt` file;
+- match the gaze data to the scene camera video;
+- create a red-point overlay video for checking the gaze mapping;
+- generate a final static heatmap image from a selected time range;
+- later generate a heatmap video that shows how the heatmap develops over time.
 
 ## Project Structure
 
 ```text
 video-heatmap-tool/
-├── src/video_heatmap/        # reusable project code
-├── scripts/                  # command-line scripts for running tasks
-├── docs/                     # project notes and progress summaries
-├── outputs/sample_images/    # small result images suitable for GitHub
-├── data/                     # local data folder, ignored by Git
-├── README.md
-├── requirements.txt
-└── .gitignore
+|-- src/video_heatmap/        reusable project code
+|-- scripts/                  scripts used for testing each step
+|-- docs/                     short progress notes
+|-- outputs/sample_images/    small example images for GitHub
+|-- data/                     local data only, not uploaded to GitHub
+|-- README.md
+|-- requirements.txt
+`-- .gitignore
 ```
 
 ## Setup
 
-Create and activate a virtual environment:
+I am using Python with an Anaconda environment.
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-Install dependencies:
+Install the required packages:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+The main packages used so far are:
+
+- `pandas` for reading the gaze data table;
+- `numpy` for numerical processing;
+- `opencv-python-headless` for reading videos, writing videos, and drawing overlays.
+
 ## Data
 
-The full Demo Data folder is not included in the repository because it is large and may contain research data.
+The full demo data is not included in this repository because it is large and contains research data.
 
-Place the Face-to-Face data locally under:
-
-```text
-data/Face-to-Face/
-```
-
-Expected structure:
+Expected local folder:
 
 ```text
 data/Face-to-Face/
-├── P2/
-├── P3/
-├── P4/
-└── P5/
+|-- P2/
+|-- P3/
+|-- P4/
+`-- P5/
 ```
 
-Each participant folder should contain:
+Each participant folder contains one gaze `.txt` file and scene camera video files.
 
-- one `*_CsvData.txt` gaze data file;
-- one `*_Scene Cam.mp4` video;
-- one `*_Scene Cam_Original_Eye Tracking Video.mp4` reference video.
+## Commands Used So Far
 
-## Week 1: Inspect Dataset
+Inspect the dataset:
 
 ```bash
 python scripts/inspect_dataset.py --data-root "data/Face-to-Face"
@@ -78,29 +74,33 @@ Inspect one participant:
 python scripts/inspect_participant.py --participant-dir "data/Face-to-Face/P2" --out-dir "outputs/P2_inspection"
 ```
 
-## Week 2: Generate Gaze Overlay
+Generate a short red-point overlay video:
 
 ```bash
-python scripts/generate_gaze_overlay.py ^
-  --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" ^
-  --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" ^
-  --out-dir "outputs/P2_overlay" ^
-  --start-frame 0 ^
-  --end-frame 300
+python scripts/generate_gaze_overlay.py --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" --out-dir "outputs/P2_overlay" --start-frame 0 --end-frame 300
 ```
 
-This creates a short video with red gaze points drawn on the scene camera video.
+Extract still frames from a video:
 
-## Current Key Finding
+```bash
+python scripts/extract_video_frames.py --video "outputs/P2_overlay/gaze_overlay_sample.mp4" --out-dir "outputs/P2_overlay_frames" --frames 1 50 100 150 200 250
+```
 
-The TXT data has more rows than the video has frames. Therefore, the tool should not map row `N` directly to frame `N`.
+Generate a static heatmap image:
 
-The current prototype uses `rec_time` to match each video frame to the nearest valid gaze sample.
+```bash
+python scripts/generate_final_heatmap.py --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" --out-dir "outputs/P2_final_heatmap_1000" --start-frame 0 --end-frame 1000 --brush-size 40 --opacity 0.55
+```
+
+## Notes
+
+One important finding so far is that the `.txt` files have many more rows than the videos have frames. For example, P2 has 30,568 rows in the gaze file, while the scene camera video has 6,981 frames. Because of this, I am currently matching gaze samples to video frames using `rec_time` instead of assuming row number equals frame number.
+
+The static heatmap should be interpreted as a heatmap over video image coordinates. Since the video is recorded with a head-mounted scene camera, objects can move in the frame over time.
 
 ## Next Steps
 
-1. Compare the generated gaze overlay with the original eye-tracking reference video.
-2. Implement a final heatmap image containing all selected gaze data.
-3. Implement a video showing heatmap development over time.
-4. Add configuration options similar to the existing Unity tool.
-5. Later, expose configuration options through UI controls such as sliders, checkboxes, dropdowns, file pickers, and buttons.
+- Add the heatmap development video output.
+- Compare different time ranges and heatmap settings.
+- Add more configurable parameters.
+- Later, consider a simple interface aligned with the existing Unity tool.

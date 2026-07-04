@@ -18,6 +18,9 @@ outputs/**/*
 !outputs/sample_images/
 !outputs/sample_images/**
 
+# Local planning notes
+docs/project_plan.md
+
 # OS/editor files
 .DS_Store
 Thumbs.db

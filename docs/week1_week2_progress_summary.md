@@ -1,109 +1,63 @@
-# Week 1-2 Progress Summary
+# Week 1-2 Progress Notes
 
-## Current scope
+## Project Scope
 
-The project currently focuses on the `Face-to-Face` part of `Demo Data`.
+The project is currently focused on the `Face-to-Face` demo data. I am using the `.txt` gaze data files and the matching scene camera videos. The JSON files from the `Augmented Reality` folder are being left out for now, based on the supervisor's feedback.
 
-The `Augmented Reality` JSON files are ignored for now, following the supervisor's instruction.
+Python is being used for the prototype because it is practical for reading table data, processing video frames, and generating image overlays.
 
-## Week 1: Dataset inspection
+## What I Have Done
 
-The dataset has been placed in:
+- Set up a local project folder and Git repository.
+- Created a basic Python project structure with `src`, `scripts`, `docs`, `outputs`, and `data` folders.
+- Set up a Conda environment and installed the required packages.
+- Copied the Face-to-Face demo data into the local `data` folder.
+- Wrote a dataset inspection script to check which participants, `.txt` files, and `.mp4` files are available.
+- Wrote a participant inspection script to check gaze data quality and video metadata.
+- Generated a short red-point overlay video for P2 to check whether gaze coordinates can be placed back onto the scene camera video.
+- Extracted still frames from the generated overlay video to make the visual checking easier.
+- Generated static heatmap images for P2 using the first 300 frames and the first 1000 frames.
 
-```text
-Demo Data/Sui Li Demo Data/Face-to-Face
-```
+## Current Understanding
 
-The folder contains four participants:
-
-| Participant | TXT file | Scene video | Eye-tracking reference video |
-| --- | --- | --- | --- |
-| P2 | yes | yes | yes |
-| P3 | yes | yes | yes |
-| P4 | yes | yes | yes |
-| P5 | yes | yes | yes |
-
-All participants have the same main gaze coordinate columns:
+The `.txt` files are not normal text notes. They are table-like eye-tracking data files. The gaze coordinates I am currently using are:
 
 ```text
 Dikablis Glasses 3_Field Data_Scene Cam_Original_Gaze_Gaze X
 Dikablis Glasses 3_Field Data_Scene Cam_Original_Gaze_Gaze Y
 ```
 
-The scene camera videos are 1920x1080.
+These columns appear to describe gaze position in the scene camera video frame.
 
-## Gaze data inspection results
+The `.txt` rows should not be treated as video frames directly. For example, P2 has 30,568 rows in the `.txt` file, but the scene camera video has 6,981 frames. The current prototype therefore matches video frames to gaze samples using `rec_time`.
 
-After filtering invalid gaze points and coordinates outside the 1920x1080 video frame:
-
-| Participant | Total TXT rows | Valid gaze rows | Invalid rows | Valid X range | Valid Y range |
-| --- | ---: | ---: | ---: | --- | --- |
-| P2 | 30,568 | 6,149 | 24,419 | 601.207-1121.189 | 61.049-1079.990 |
-| P3 | 27,585 | 11,819 | 15,766 | 6.187-1919.588 | 59.718-1075.364 |
-| P4 | 22,455 | 13,144 | 9,311 | 158.101-1897.887 | 37.978-1079.399 |
-| P5 | 15,898 | 10,727 | 5,171 | 17.620-1880.760 | 15.064-1078.237 |
-
-Important finding:
-
-The `.txt` files contain more rows than the video has frames. For example, P2 has 30,568 TXT rows but the scene video has 6,981 frames. Therefore, one TXT row should not be treated as one video frame. The current prototype uses `rec_time` to match each video frame to the nearest valid gaze sample.
-
-## Week 2: Gaze overlay prototype
-
-A first gaze overlay prototype has been implemented.
+## Results So Far
 
 For P2:
 
-- scene video resolution: 1920x1080
-- scene video FPS: approximately 30.00 FPS
-- scene video frame count: 6,981
-- tested range: first 300 frames
-- frames written: 300
-- frames with matched valid gaze point: 172
-- matching method: nearest valid gaze sample by `rec_time`
+- Scene camera video resolution: 1920 x 1080
+- Scene camera FPS: about 30 FPS
+- Scene camera frame count: 6,981
+- Gaze file rows: 30,568
+- Valid gaze rows after filtering: 6,149
 
-Output files:
+The red-point overlay appears to place gaze points in plausible positions. I also compared the generated overlay with frames extracted from the same scene camera video to confirm that the background frames match.
 
-```text
-outputs/P2_overlay/gaze_overlay_sample.mp4
-outputs/P2_overlay/gaze_overlay_summary.json
-outputs/P2_overlay/first_frame.png
-outputs/P2_overlay/first_matched_frame_1.png
-```
+I also tried comparing with the exported original eye-tracking video, but the videos do not seem to stay frame-synchronised when using the same frame numbers. This may be because the eye-tracking reference video was exported with a different timing or start point. I plan to discuss this with my supervisor.
 
-The first matched frame shows the red gaze point drawn on the scene video at:
+The static heatmap for the first 1000 frames shows gaze concentration around the participant's upper body / marker area, which matches my rough visual inspection of the red-point overlay video.
 
-```text
-frame: 1
-frame time: 0.033 seconds
-gaze time: 0.054 seconds
-x: 927.144
-y: 636.524
-```
+## Questions For The Next Meeting
 
-## Implementation notes
+1. Should the final static heatmap usually be generated over the whole video, or should the user choose a time range?
+2. Should the heatmap development video be cumulative over time, or should it show only a recent time window?
+3. Is it acceptable to interpret the static heatmap as image-coordinate based, given that the scene camera is head-mounted and moves over time?
+4. Should I focus first on reproducing the existing Unity tool's main features before adding extra options?
+5. What kind of evaluation would be suitable for this project: technical validation, expert walkthrough, small user test, or a combination?
 
-The first version of the project scaffold is in:
+## Next Steps
 
-```text
-work/video_heatmap_tool
-```
-
-Implemented so far:
-
-- dataset inspection script;
-- participant inspection script;
-- gaze TXT loader;
-- valid gaze filtering;
-- MP4 video metadata reading;
-- OpenCV-based video reading/writing;
-- gaze point overlay prototype.
-
-## Next steps
-
-The next practical tasks are:
-
-1. Compare the generated gaze overlay video with the original eye-tracking reference video.
-2. If the gaze position is correct, implement the final heatmap image output.
-3. Implement the heatmap development video output.
-4. Add configuration options such as start/end frame, brush size, opacity, normalization, frame skip, and heatmap gradient.
-5. Later, convert the configuration options into UI controls aligned with the existing Unity tool, such as sliders, checkboxes, dropdowns, file pickers, and buttons.
+- Implement the heatmap development video output.
+- Test the same pipeline with P3, P4, and P5.
+- Add clearer configuration options such as start frame, end frame, brush size, opacity, normalisation, and frame skip.
+- Start documenting the implementation and decisions in a way that can support the final dissertation report.
