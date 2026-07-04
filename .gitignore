@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local data and large media
+data/
+Demo Data/
+*.zip
+*.mp4
+*.avi
+*.mov
+
+# Generated outputs
+outputs/**/*
+!outputs/
+!outputs/sample_images/
+!outputs/sample_images/**
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

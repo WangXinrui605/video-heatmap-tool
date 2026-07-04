@@ -1,0 +1,2 @@
+"""Video heatmap prototype package."""
+
