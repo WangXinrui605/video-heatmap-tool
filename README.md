@@ -20,7 +20,7 @@ The aim is to build a tool that can:
 video-heatmap-tool/
 |-- src/video_heatmap/        reusable project code
 |-- scripts/                  scripts used for testing each step
-|-- docs/                     short progress notes
+|-- docs/                     local notes, not uploaded to GitHub
 |-- outputs/sample_images/    small example images for GitHub
 |-- data/                     local data only, not uploaded to GitHub
 |-- README.md
