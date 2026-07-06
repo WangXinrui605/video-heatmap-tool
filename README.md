@@ -69,12 +69,6 @@ Each participant folder should contain a gaze `.txt` file and the matching scene
 
 ## Main Scripts
 
-Inspect the dataset:
-
-```bash
-python scripts/inspect_dataset.py --data-root "data/Face-to-Face"
-```
-
 Inspect one participant:
 
 ```bash
