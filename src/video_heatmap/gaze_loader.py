@@ -71,6 +71,7 @@ def load_gaze_txt(
         df["time_seconds"] = np.nan
     valid = df["gaze_x"].notna() & df["gaze_y"].notna()
     valid &= np.isfinite(df["gaze_x"]) & np.isfinite(df["gaze_y"])
+    # In the demo data, (0,0) appears when the reference video shows no gaze marker.
     valid &= ~((df["gaze_x"] == 0) & (df["gaze_y"] == 0))
 
     if video_width is not None:

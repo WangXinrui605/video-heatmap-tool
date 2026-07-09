@@ -97,4 +97,6 @@ python scripts/generate_final_heatmap.py --gaze "data/Face-to-Face/P2/P2_2. Reco
 
 The `.txt` gaze data files contain more rows than the scene camera videos have frames. For example, P2 has 30,568 gaze rows, while the scene camera video has 6,981 frames. The prototype therefore does not assume that row number equals frame number. It currently uses `rec_time` to select gaze samples for a video time range.
 
+For the current demo data, gaze points at `(0,0)` are treated as invalid. I checked examples in the reference eye-tracking videos and these periods appear to show no gaze marker rather than a real gaze point.
+
 The static heatmap is currently an image-coordinate heatmap. Since the scene camera is head-mounted, objects can move within the frame over time. The static heatmap is useful for showing the overall gaze distribution in the video image, but it should be interpreted together with the planned heatmap development video.
