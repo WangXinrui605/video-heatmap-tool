@@ -49,8 +49,12 @@ def main() -> None:
 
     video_info = get_video_info(args.video)
     end_frame = args.end_frame if args.end_frame is not None else video_info.frame_count
+    end_frame = min(end_frame, video_info.frame_count)
+    if args.start_frame < 0 or args.start_frame >= end_frame:
+        raise SystemExit("Selected frame range is not valid.")
     start_time = args.start_frame / video_info.fps
-    end_time = end_frame / video_info.fps
+    last_output_frame = end_frame - 1
+    end_time = last_output_frame / video_info.fps
 
     gaze = load_gaze_txt(args.gaze, video_width=video_info.width, video_height=video_info.height)
     valid_gaze = gaze.dataframe[gaze.dataframe["valid"]].copy()
@@ -83,7 +87,8 @@ def main() -> None:
         },
         "selected_range": {
             "start_frame": args.start_frame,
-            "end_frame": end_frame,
+            "end_frame_exclusive": end_frame,
+            "last_output_frame": last_output_frame,
             "start_time_seconds": start_time,
             "end_time_seconds": end_time,
         },
