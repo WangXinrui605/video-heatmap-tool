@@ -8,17 +8,16 @@ The current prototype focuses on the `Face-to-Face` part of the provided demo da
 
 Implemented so far:
 
-- dataset inspection for the Face-to-Face demo data;
 - participant-level gaze and video inspection;
 - loading and filtering gaze coordinates from `.txt` files;
 - matching gaze samples to scene camera video time using `rec_time`;
 - red-point gaze overlay video for checking the mapping;
 - frame extraction for manual checking;
-- static heatmap image generation for a selected frame range.
+- static heatmap image generation for a selected frame range;
+- cumulative heatmap development video generation.
 
 Still to do:
 
-- heatmap development video output;
 - more testing with P3, P4, and P5;
 - clearer configuration options;
 - later, a simple interface aligned with the existing Unity tool.
@@ -92,6 +91,14 @@ Generate a static heatmap image:
 ```bash
 python scripts/generate_final_heatmap.py --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" --out-dir "outputs/P2_final_heatmap_1000" --start-frame 0 --end-frame 1000 --brush-size 40 --opacity 0.55
 ```
+
+Generate a cumulative heatmap development video:
+
+```bash
+python scripts/generate_heatmap_video.py --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" --out-dir "outputs/P2_heatmap_video_1000" --start-frame 0 --end-frame 1000 --brush-size 40 --opacity 0.55 --frame-skip 1
+```
+
+`--frame-skip` can be increased for faster test outputs. For example, `--frame-skip 5` writes every fifth frame and lowers the output FPS so the video still plays at approximately the original speed.
 
 ## Current Notes
 
