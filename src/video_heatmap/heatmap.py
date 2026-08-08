@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .video_io import require_cv2
+
 
 def add_brush(heatmap: np.ndarray, x: float, y: float, radius: int, value: float = 1.0) -> None:
     """Add a simple circular brush to a heatmap matrix in-place."""
@@ -31,6 +33,35 @@ def normalize_to_uint8(heatmap: np.ndarray) -> np.ndarray:
     if max_value <= 0:
         return np.zeros_like(heatmap, dtype=np.uint8)
     return np.clip((heatmap / max_value) * 255.0, 0, 255).astype(np.uint8)
+
+
+def normalize_with_max(heatmap: np.ndarray, max_value: float) -> np.ndarray:
+    """Map a heatmap to uint8 using a caller-provided stable maximum."""
+    if max_value <= 0:
+        return np.zeros_like(heatmap, dtype=np.uint8)
+    return np.clip((heatmap / float(max_value)) * 255.0, 0, 255).astype(np.uint8)
+
+
+def colorize_heatmap(heatmap_uint8: np.ndarray) -> np.ndarray:
+    """Apply OpenCV's JET colormap to a uint8 heatmap."""
+    cv2 = require_cv2()
+    return cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+
+
+def overlay_heatmap(
+    background: np.ndarray,
+    heatmap_uint8: np.ndarray,
+    opacity: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Blend a heatmap over a BGR frame using heat-dependent alpha."""
+    color_heatmap = colorize_heatmap(heatmap_uint8)
+    alpha = (heatmap_uint8.astype(np.float32) / 255.0) * float(opacity)
+    alpha = alpha[:, :, None]
+    blended = (
+        background.astype(np.float32) * (1.0 - alpha)
+        + color_heatmap.astype(np.float32) * alpha
+    )
+    return blended.clip(0, 255).astype(np.uint8), color_heatmap
 
 
 def build_final_heatmap(points: np.ndarray, width: int, height: int, radius: int) -> np.ndarray:

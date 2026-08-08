@@ -31,6 +31,10 @@ class GazeData:
     def invalid_rows(self) -> int:
         return self.total_rows - self.valid_rows
 
+    @property
+    def timed_valid_rows(self) -> int:
+        return int((self.dataframe["valid"] & self.dataframe["time_valid"]).sum())
+
 
 def _pick_column(columns: list[str], preferred: str, fallback_suffix: str) -> Optional[str]:
     if preferred in columns:
@@ -69,17 +73,29 @@ def load_gaze_txt(
         df["time_seconds"] = df["rec_time"].map(parse_rec_time_seconds)
     else:
         df["time_seconds"] = np.nan
-    valid = df["gaze_x"].notna() & df["gaze_y"].notna()
-    valid &= np.isfinite(df["gaze_x"]) & np.isfinite(df["gaze_y"])
-    # In the demo data, (0,0) appears when the reference video shows no gaze marker.
-    valid &= ~((df["gaze_x"] == 0) & (df["gaze_y"] == 0))
 
+    missing = df["gaze_x"].isna() | df["gaze_y"].isna()
+    non_finite = ~missing & (
+        ~np.isfinite(df["gaze_x"]) | ~np.isfinite(df["gaze_y"])
+    )
+    zero_pair = ~missing & ~non_finite & (df["gaze_x"] == 0) & (df["gaze_y"] == 0)
+    out_of_bounds = np.zeros(len(df), dtype=bool)
     if video_width is not None:
-        valid &= (df["gaze_x"] >= 0) & (df["gaze_x"] < video_width)
+        out_of_bounds |= (df["gaze_x"] < 0) | (df["gaze_x"] >= video_width)
     if video_height is not None:
-        valid &= (df["gaze_y"] >= 0) & (df["gaze_y"] < video_height)
+        out_of_bounds |= (df["gaze_y"] < 0) | (df["gaze_y"] >= video_height)
+    out_of_bounds &= ~(missing | non_finite | zero_pair)
 
+    valid = ~(missing | non_finite | zero_pair | out_of_bounds)
+    # In the demo data, (0,0) appears when the reference video shows no gaze marker.
     df["valid"] = valid
+    df["time_valid"] = np.isfinite(df["time_seconds"])
+    df["invalid_reason"] = np.select(
+        [missing, non_finite, zero_pair, out_of_bounds],
+        ["missing_or_non_numeric", "non_finite", "zero_pair", "out_of_bounds"],
+        default="valid",
+    )
+    # This is the source TXT row position, not a video-frame assignment.
     df["frame_index"] = np.arange(len(df), dtype=int)
 
     return GazeData(source_path=source_path, dataframe=df, x_col=resolved_x, y_col=resolved_y)
@@ -104,6 +120,11 @@ def parse_rec_time_seconds(value) -> float:
 
 def summarize_gaze(gaze: GazeData) -> dict:
     valid_df = gaze.dataframe[gaze.dataframe["valid"]]
+    invalid_reason_counts = {
+        str(reason): int(count)
+        for reason, count in gaze.dataframe["invalid_reason"].value_counts().items()
+        if reason != "valid"
+    }
     summary = {
         "source_path": str(gaze.source_path),
         "x_col": gaze.x_col,
@@ -111,6 +132,9 @@ def summarize_gaze(gaze: GazeData) -> dict:
         "total_rows": gaze.total_rows,
         "valid_rows": gaze.valid_rows,
         "invalid_rows": gaze.invalid_rows,
+        "timed_valid_rows": gaze.timed_valid_rows,
+        "valid_rows_without_rec_time": gaze.valid_rows - gaze.timed_valid_rows,
+        "invalid_reason_counts": invalid_reason_counts,
     }
     if not valid_df.empty:
         summary.update(

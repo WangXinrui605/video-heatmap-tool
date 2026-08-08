@@ -4,11 +4,13 @@ import argparse
 import json
 from pathlib import Path
 import sys
+from time import perf_counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from video_heatmap.gaze_loader import load_gaze_txt, summarize_gaze
 from video_heatmap.heatmap import build_final_heatmap, normalize_to_uint8
+from video_heatmap.time_range import resolve_selected_range
 from video_heatmap.video_io import get_video_info, require_cv2
 
 
@@ -37,29 +39,38 @@ def main() -> None:
     parser.add_argument("--gaze", required=True)
     parser.add_argument("--video", required=True)
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--start-frame", type=int, default=0)
+    parser.add_argument("--start-frame", type=int, default=None)
     parser.add_argument("--end-frame", type=int, default=None)
+    parser.add_argument("--start-time", type=float, default=None)
+    parser.add_argument("--end-time", type=float, default=None)
     parser.add_argument("--brush-size", type=int, default=40)
     parser.add_argument("--opacity", type=float, default=0.55)
     args = parser.parse_args()
+    started_at = perf_counter()
 
     cv2 = require_cv2()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     video_info = get_video_info(args.video)
-    end_frame = args.end_frame if args.end_frame is not None else video_info.frame_count
-    end_frame = min(end_frame, video_info.frame_count)
-    if args.start_frame < 0 or args.start_frame >= end_frame:
-        raise SystemExit("Selected frame range is not valid.")
-    start_time = args.start_frame / video_info.fps
-    last_output_frame = end_frame - 1
-    end_time = last_output_frame / video_info.fps
+    try:
+        selected_range = resolve_selected_range(
+            video_info,
+            start_frame=args.start_frame,
+            end_frame=args.end_frame,
+            start_time=args.start_time,
+            end_time=args.end_time,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     gaze = load_gaze_txt(args.gaze, video_width=video_info.width, video_height=video_info.height)
     valid_gaze = gaze.dataframe[gaze.dataframe["valid"]].copy()
     valid_gaze = valid_gaze.dropna(subset=["time_seconds"])
-    selected = valid_gaze[(valid_gaze["time_seconds"] >= start_time) & (valid_gaze["time_seconds"] <= end_time)]
+    selected = valid_gaze[
+        (valid_gaze["time_seconds"] >= selected_range.start_time_seconds)
+        & (valid_gaze["time_seconds"] <= selected_range.end_time_seconds)
+    ]
     if selected.empty:
         raise SystemExit("No valid gaze samples were found in the selected frame range.")
 
@@ -67,7 +78,7 @@ def main() -> None:
     heatmap = build_final_heatmap(points, video_info.width, video_info.height, args.brush_size)
     heatmap_uint8 = normalize_to_uint8(heatmap)
 
-    background_frame = read_background_frame(args.video, args.start_frame)
+    background_frame = read_background_frame(args.video, selected_range.start_frame)
     overlay, color_heatmap = overlay_heatmap(background_frame, heatmap_uint8, args.opacity)
 
     heatmap_gray_path = out_dir / "final_heatmap_gray.png"
@@ -85,13 +96,7 @@ def main() -> None:
             "final_heatmap_color": str(heatmap_color_path),
             "final_heatmap_overlay": str(overlay_path),
         },
-        "selected_range": {
-            "start_frame": args.start_frame,
-            "end_frame_exclusive": end_frame,
-            "last_output_frame": last_output_frame,
-            "start_time_seconds": start_time,
-            "end_time_seconds": end_time,
-        },
+        "selected_range": selected_range.as_dict(),
         "parameters": {
             "brush_size": args.brush_size,
             "opacity": args.opacity,
@@ -104,6 +109,7 @@ def main() -> None:
         },
         "gaze_summary": summarize_gaze(gaze),
         "selected_valid_gaze_samples": int(len(selected)),
+        "runtime_seconds": perf_counter() - started_at,
     }
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False))

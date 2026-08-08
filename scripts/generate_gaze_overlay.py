@@ -4,10 +4,12 @@ import argparse
 import json
 from pathlib import Path
 import sys
+from time import perf_counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from video_heatmap.gaze_loader import load_gaze_txt, summarize_gaze
+from video_heatmap.time_range import resolve_selected_range
 from video_heatmap.video_io import get_video_info, require_cv2
 
 
@@ -16,15 +18,36 @@ def main() -> None:
     parser.add_argument("--gaze", required=True)
     parser.add_argument("--video", required=True)
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--start-frame", type=int, default=0)
-    parser.add_argument("--end-frame", type=int, default=300)
+    parser.add_argument("--start-frame", type=int, default=None)
+    parser.add_argument("--end-frame", type=int, default=None)
+    parser.add_argument("--start-time", type=float, default=None)
+    parser.add_argument("--end-time", type=float, default=None)
     parser.add_argument("--point-radius", type=int, default=8)
     args = parser.parse_args()
+    started_at = perf_counter()
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     video_info = get_video_info(args.video)
+    default_end_frame = None
+    if (
+        args.start_frame is None
+        and args.start_time is None
+        and args.end_frame is None
+        and args.end_time is None
+    ):
+        default_end_frame = min(300, video_info.frame_count)
+    try:
+        selected_range = resolve_selected_range(
+            video_info,
+            start_frame=args.start_frame,
+            end_frame=args.end_frame if args.end_frame is not None else default_end_frame,
+            start_time=args.start_time,
+            end_time=args.end_time,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     gaze = load_gaze_txt(args.gaze, video_width=video_info.width, video_height=video_info.height)
     valid_gaze = gaze.dataframe[gaze.dataframe["valid"]].copy()
     valid_gaze = valid_gaze.dropna(subset=["time_seconds"]).sort_values("time_seconds")
@@ -36,15 +59,20 @@ def main() -> None:
     cv2 = require_cv2()
 
     cap = cv2.VideoCapture(str(args.video))
-    cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame)
+    if not cap.isOpened():
+        raise SystemExit(f"Could not open video: {args.video}")
+    cap.set(cv2.CAP_PROP_POS_FRAMES, selected_range.start_frame)
     out_path = out_dir / "gaze_overlay_sample.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(out_path), fourcc, video_info.fps, (video_info.width, video_info.height))
+    if not writer.isOpened():
+        cap.release()
+        raise SystemExit(f"Could not create output video: {out_path}")
 
-    frame_index = args.start_frame
+    frame_index = selected_range.start_frame
     written = 0
     matched_points = 0
-    while frame_index < args.end_frame:
+    while frame_index < selected_range.end_frame_exclusive:
         ok, frame = cap.read()
         if not ok:
             break
@@ -75,6 +103,8 @@ def main() -> None:
         "written_frames": written,
         "matched_points": matched_points,
         "matching_method": "nearest valid gaze sample by rec_time",
+        "maximum_time_distance_seconds": 0.05,
+        "selected_range": selected_range.as_dict(),
         "video_info": {
             "width": video_info.width,
             "height": video_info.height,
@@ -82,6 +112,7 @@ def main() -> None:
             "frame_count": video_info.frame_count,
         },
         "gaze_summary": summarize_gaze(gaze),
+        "runtime_seconds": perf_counter() - started_at,
     }
     (out_dir / "gaze_overlay_summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
