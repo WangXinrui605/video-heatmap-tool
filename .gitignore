@@ -28,10 +28,7 @@ output/
 *.log
 
 # Generated outputs
-outputs/**/*
-!outputs/
-!outputs/sample_images/
-!outputs/sample_images/**
+outputs/
 
 # OS/editor files
 .DS_Store

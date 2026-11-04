@@ -11,7 +11,6 @@ screen-space, face-relative, marker-relative, and optical-flow heatmaps.
 - A PySide6 desktop application for the baseline, face-relative, and optical-flow
   workflows.
 - Automated tests for the processing pipeline and desktop-app components.
-- One small, non-sensitive example image in `outputs/sample_images/`.
 
 Research data, model weights, generated videos, personal working notes, and
 dissertation materials are deliberately excluded from this repository.
@@ -85,7 +84,6 @@ pytest -q
 src/video_heatmap/       Core processing and desktop-application code
 scripts/                 Command-line entry points and evaluation utilities
 tests/                   Automated tests and lightweight fixtures
-outputs/sample_images/   Example image safe to publish
 data/                    Local research data (ignored)
 ```
 
