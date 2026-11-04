@@ -38,7 +38,7 @@ MODE_INFO = {
         "history": "cumulative canonical memory for the declared target identity",
         "status": "main method",
         "limitations": [
-            "Uses G1 unique TXT source-row assignment; nearest-frame matches are display-only.",
+            "Uses unique TXT source-row assignment; nearest-frame matches are display-only.",
             "Requires exactly one detected face under the single-conversation-partner identity policy.",
             "A face box is not a facial-landmark coordinate system or accuracy ground truth.",
             "Tracking loss retains canonical memory, briefly freezes display, then hides stale overlay.",
@@ -184,14 +184,14 @@ def validate_face_summary(out_dir: Path) -> dict[str, Any]:
     missing = [key for key in required if key not in counts]
     if assignment.get("schema_version") != "gaze_assignment.v1" or missing:
         raise RuntimeError(
-            "Face output is not the accepted G1 unique-source-row schema; "
+            "Face output does not use the required unique-source-row schema; "
             f"missing fields: {missing or 'assignment schema_version'}"
         )
     if not duplicate.get("passed", False):
-        raise RuntimeError("Face output failed the G1 duplicate-consumption check.")
+        raise RuntimeError("Face output failed the duplicate-consumption check.")
     partition = sum(counts[key] for key in required[2:])
     if partition != counts["assigned_unique_source_rows"]:
-        raise RuntimeError("Face output failed the G1 unique-source-row coverage partition.")
+        raise RuntimeError("Face output failed the unique-source-row coverage partition.")
     return summary
 
 
@@ -205,7 +205,7 @@ def collect_core_summaries(mode: str, out_dir: Path) -> list[dict[str, Any]]:
     if mode == "flow":
         summary = read_json(out_dir / "optical_flow_video_summary.json")
         if summary.get("schema_version") != "optical_flow_event_semantics.v2":
-            raise RuntimeError("Optical-flow output does not use the accepted O2 v2 event schema.")
+            raise RuntimeError("Optical-flow output does not use the current event schema.")
         if summary.get("history_mode") != "window":
             raise RuntimeError("Integrated optical-flow mode must use recent-window history.")
         return [summary]

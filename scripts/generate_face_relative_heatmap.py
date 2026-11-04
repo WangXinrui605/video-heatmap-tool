@@ -716,7 +716,7 @@ def main() -> None:
             "drives_canonical_accumulation": False,
         },
         "target_selection_policy": (
-            "R1 identity gate requires exactly one detected face. The F1 largest-area "
+            "The identity gate requires exactly one detected face. The largest-area "
             "policy is used only for detection statistics; multiple faces are treated "
             "as identity-uncertain and never merged into canonical memory."
         ),
@@ -733,7 +733,7 @@ def main() -> None:
             "brush_radius": args.brush_radius,
             "opacity": args.opacity,
             "frame_skip": args.frame_skip,
-            "output_update_interval_semantics": "write_every_nth_output_frame_only; all frames drive G1 assignment and R1 lifecycle",
+            "output_update_interval_semantics": "write_every_nth_output_frame_only; all frames drive source-row assignment and the tracking lifecycle",
             "rendering": rendering_summary(args.gradient, heat_scale, resolved_maximum=resolved_maximum),
             "history_mode": args.history_mode,
             "window_seconds": args.window_seconds if args.history_mode == "window" else None,
@@ -806,7 +806,7 @@ def main() -> None:
                 "The default 0.5-second freeze is an initial configurable engineering "
                 "choice, not a scientifically validated threshold."
             ),
-            "R1 remains detector-only and does not use optical flow to bridge loss.",
+            "The lifecycle remains detector-only and does not use optical flow to bridge loss.",
             (
                 "Original Eye Tracking reference timing/offset is not strictly synchronized; "
                 "reference observations are approximate manual evidence, not accuracy ground truth."

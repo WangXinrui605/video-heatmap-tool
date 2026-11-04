@@ -62,7 +62,7 @@ class RunConfig:
     def effective_heat_scale(self) -> HeatScale:
         if self.heat_scale is not None:
             return self.heat_scale
-        # Flow's accepted O2 renderer historically used a fixed raw maximum of 20.
+        # The optical-flow renderer historically used a fixed raw maximum of 20.
         if self.method is Method.FLOW:
             return HeatScale(HeatScaleMode.FIXED, 20.0)
         return HeatScale(HeatScaleMode.AUTO)

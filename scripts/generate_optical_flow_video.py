@@ -47,7 +47,7 @@ TRAJECTORY_FIELDS = [
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate an O2 recent-window optical-flow video with explicit event semantics."
+        description="Generate a recent-window optical-flow video with explicit event semantics."
     )
     parser.add_argument("--gaze", required=True)
     parser.add_argument("--video", required=True)
@@ -383,7 +383,7 @@ def main() -> None:
             "event_annotations": args.event_annotations, "brush_size": args.brush_size,
             "opacity": args.opacity, "heatmap_max": args.heatmap_max,
             "frame_skip": args.frame_skip, "output_fps": output_fps,
-            "output_update_interval_semantics": "write_every_nth_output_frame_only; all frames drive O2 flow and event policy",
+            "output_update_interval_semantics": "write_every_nth_output_frame_only; all frames drive optical flow and event policy",
             "rendering": rendering_summary(args.gradient, heat_scale, resolved_maximum=heat_scale.maximum),
         },
     }

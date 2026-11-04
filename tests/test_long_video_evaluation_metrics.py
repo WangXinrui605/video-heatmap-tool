@@ -148,7 +148,7 @@ class LongVideoMetricsTests(unittest.TestCase):
         self.assertTrue(validate_l1_summary(summary))
 
     def test_legacy_matrix_entry_is_explicitly_short(self):
-        entry = parse_legacy_entry("P4,face,G1_P4_0_300,outputs/example.json")
+        entry = parse_legacy_entry("P4,face,face_assignment_P4_0_300,outputs/example.json")
         self.assertEqual(entry["evidence_class"], "existing_short_smoke")
         self.assertEqual(entry["interval_tier"], "short_smoke")
 

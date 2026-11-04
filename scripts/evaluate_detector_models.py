@@ -8,7 +8,7 @@ from typing import Mapping, Sequence
 
 
 SCHEMA = "detector_model_evidence.v1"
-PROTOCOL_ID = "E3-matched-v1-2026-08-29"
+PROTOCOL_ID = "detector-provider-comparison-v1-2026-08-29"
 EXPECTED_PROVIDERS = ("opencv-yunet", "opencv-dnn-ssd")
 EXPECTED_PARTICIPANTS = ("P2", "P3", "P4", "P5")
 
@@ -275,15 +275,15 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def build_outputs(f2_root: Path, out_dir: Path) -> dict[str, object]:
+def build_outputs(evidence_root: Path, out_dir: Path) -> dict[str, object]:
     short = load_matched_summaries(
-        f2_root / "matched_0_300" / "matched_summaries.json",
+        evidence_root / "matched_0_300" / "matched_summaries.json",
         participants=EXPECTED_PARTICIPANTS,
         providers=EXPECTED_PROVIDERS,
         expected_range=(0, 300),
     )
     minute = load_matched_summaries(
-        f2_root / "matched_one_minute_P5" / "matched_summaries.json",
+        evidence_root / "matched_one_minute_P5" / "matched_summaries.json",
         participants=("P5",),
         providers=EXPECTED_PROVIDERS,
         expected_range=(0, 1800),
@@ -293,8 +293,8 @@ def build_outputs(f2_root: Path, out_dir: Path) -> dict[str, object]:
     pooled = aggregate_rows(short_rows, "P2-P5 pooled matched [0,300)")
     public = public_evidence_rows()
     project_rows = short_rows + minute_rows + pooled
-    environment = _load_json(f2_root / "matched_0_300" / "environment.json")
-    observations = _load_json(f2_root / "visual_observations.json")
+    environment = _load_json(evidence_root / "matched_0_300" / "environment.json")
+    observations = _load_json(evidence_root / "visual_observations.json")
     protocol = {
         "schema": SCHEMA,
         "protocol_id": PROTOCOL_ID,
@@ -335,11 +335,11 @@ def build_outputs(f2_root: Path, out_dir: Path) -> dict[str, object]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Aggregate frozen F2 detector evidence for E3.")
-    parser.add_argument("--f2-root", type=Path, default=Path("outputs/F2"))
-    parser.add_argument("--out-dir", type=Path, default=Path("outputs/E3"))
+    parser = argparse.ArgumentParser(description="Aggregate matched detector-provider comparison results.")
+    parser.add_argument("--evidence-root", type=Path, default=Path("outputs/detector_provider_runs"))
+    parser.add_argument("--out-dir", type=Path, default=Path("outputs/detector_model_evaluation"))
     args = parser.parse_args()
-    package = build_outputs(args.f2_root, args.out_dir)
+    package = build_outputs(args.evidence_root, args.out_dir)
     print(json.dumps({"schema": package["schema"], "out_dir": str(args.out_dir), "validation_errors": []}, indent=2))
 
 

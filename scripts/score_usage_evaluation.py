@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and descriptively summarise E2 usage-evaluation records.
+"""Validate and descriptively summarise usage-evaluation records.
 
 This module deliberately performs no significance tests and makes no population
 inferences. Synthetic fixtures used by tests are not participant data.
@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
-PROTOCOL_VERSION = "E2-A-v1.0"
-BUILD_SCOPE = "U1-C1-first-release-three-method-gui"
+PROTOCOL_VERSION = "usage-evaluation-v1.0"
+BUILD_SCOPE = "first-release-three-method-gui"
 OUTCOMES = {"success", "partial", "fail", "abandoned", "not_attempted"}
-PARTICIPANT_ID_RE = re.compile(r"^E2-P\d{3}$")
+PARTICIPANT_ID_RE = re.compile(r"^participant-\d{3}$")
 
 
 def _finite_number(value: Any, field: str) -> float:
@@ -38,7 +38,7 @@ def _finite_number(value: Any, field: str) -> float:
 def validate_participant_id(value: Any) -> str:
     participant_id = str(value)
     if not PARTICIPANT_ID_RE.fullmatch(participant_id):
-        raise ValueError("participant_id must match E2-P###")
+        raise ValueError("participant_id must match participant-###")
     return participant_id
 
 
@@ -222,7 +222,7 @@ def validate_dataset(payload: Mapping[str, Any]) -> None:
 def build_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
     validate_dataset(payload)
     return {
-        "schema_version": "e2_usage_descriptive_summary.v1",
+        "schema_version": "usage_descriptive_summary.v1",
         "protocol_version": PROTOCOL_VERSION,
         "build_scope": BUILD_SCOPE,
         "data_class": payload["data_class"],

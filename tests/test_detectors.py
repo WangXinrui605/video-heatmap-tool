@@ -27,14 +27,14 @@ class DetectorTests(unittest.TestCase):
         cls.ssd_model_path = (
             Path(__file__).resolve().parents[1]
             / "outputs"
-            / "F2"
+            / "detector_provider_runs"
             / "models"
             / "opencv_face_detector_uint8.pb"
         )
         cls.ssd_config_path = (
             Path(__file__).resolve().parents[1]
             / "outputs"
-            / "F2"
+            / "detector_provider_runs"
             / "models"
             / "opencv_face_detector.pbtxt"
         )

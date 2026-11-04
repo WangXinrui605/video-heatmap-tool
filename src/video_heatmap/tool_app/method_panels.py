@@ -40,10 +40,10 @@ METHOD_DETAILS = {
     Method.FACE: {
         "label": "Face-relative cumulative — detector-only main method",
         "status": "MAIN METHOD",
-        "history": "Cumulative canonical memory using G1 unique TXT source-row assignment.",
+        "history": "Cumulative canonical memory using unique TXT source-row assignment.",
         "limitations": [
             "Exactly one face and a single conversation partner are assumed.",
-            "R1 retains canonical memory, briefly freezes on loss, then hides stale display.",
+            "The tracking lifecycle retains canonical memory, briefly freezes on loss, then hides stale display.",
             "Nearest matching is current-gaze display only; a face box is not landmark or accuracy ground truth.",
         ],
         "brush": "Brush Radius (canonical canvas pixels)",
@@ -142,7 +142,7 @@ class FacePanel(QWidget):
         self.freeze.setRange(0, 60)
         self.freeze.setValue(0.5)
         self.freeze.setSuffix(" s")
-        note = QLabel("Exactly one face; single-conversation-partner identity policy. Detector-only R1 lifecycle.")
+        note = QLabel("Exactly one face; single-conversation-partner identity policy. Detector-only tracking lifecycle.")
         note.setWordWrap(True)
         form.addRow("Detector provider", self.provider)
         form.addRow("Detector model", self.model)

@@ -92,7 +92,7 @@ class HeatmapToolTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "face_relative_summary.json"
             path.write_text(json.dumps({"counts": {}}), encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "G1"):
+            with self.assertRaisesRegex(RuntimeError, "unique-source-row"):
                 validate_face_summary(Path(folder))
 
     def test_face_summary_accepts_unique_row_partition(self) -> None:

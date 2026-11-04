@@ -288,7 +288,7 @@ def is_shot_boundary(
     disturbance_threshold: float,
     appearance_threshold: float,
 ) -> bool:
-    """Legacy O1 compatibility alias.
+    """Legacy compatibility alias.
 
     New code must call :func:`is_visual_discontinuity_candidate`; the boolean
     produced here is not evidence of a confirmed hard cut.
@@ -485,7 +485,7 @@ def load_manual_boundaries(path: str | Path | None) -> set[int]:
 
 
 def load_event_annotations(path: str | Path | None) -> dict[int, dict[str, object]]:
-    """Load O2 CSV/JSON annotations and validate shared field enums."""
+    """Load optical-flow CSV/JSON annotations and validate shared field enums."""
     if path is None:
         return {}
     source = Path(path)
@@ -525,7 +525,7 @@ def load_event_annotations(path: str | Path | None) -> dict[int, dict[str, objec
 
 
 def read_legacy_event_summary(path: str | Path) -> dict[str, object]:
-    """Read O1 evidence without promoting legacy boundaries to confirmed cuts."""
+    """Read legacy results without promoting boundaries to confirmed cuts."""
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if payload.get("schema_version") == O2_SCHEMA_VERSION:
         return payload

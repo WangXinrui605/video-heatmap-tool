@@ -23,7 +23,7 @@ from video_heatmap.tool_app.main_window import AppState, MainWindow
 
 
 ATTEMPT = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-OUT = ROOT / "outputs" / "U1-B4R" / "real_windows_gui_cancel" / ATTEMPT
+OUT = ROOT / "outputs" / "gui_cancellation_revalidation" / "real_windows_gui_cancel" / ATTEMPT
 OUT.mkdir(parents=True, exist_ok=True)
 
 

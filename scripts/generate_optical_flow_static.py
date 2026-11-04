@@ -48,7 +48,7 @@ def write_interval(cv2, out_dir: Path, technical_id: int, flow_id: int,
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate O2 static diagnostics split only by confirmed cuts/flow intervals."
+        description="Generate static optical-flow diagnostics split only by confirmed cuts/flow intervals."
     )
     parser.add_argument("--gaze", required=True)
     parser.add_argument("--video", required=True)

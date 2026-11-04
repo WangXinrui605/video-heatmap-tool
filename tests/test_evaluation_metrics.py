@@ -63,7 +63,7 @@ class EvaluationMetricTests(unittest.TestCase):
     def test_rejects_superseded_face_schema(self):
         face, audit = face_fixture()
         face["accumulation_sample_assignment"]["schema_version"] = "frame_assignment.legacy"
-        with self.assertRaisesRegex(ValueError, "G1 corrected"):
+        with self.assertRaisesRegex(ValueError, "unique-source-row"):
             MODULE.validate_face(face, audit)
 
     def test_rejects_duplicate_consumption(self):

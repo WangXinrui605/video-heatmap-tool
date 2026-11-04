@@ -1,7 +1,7 @@
-"""Run and validate L1 long-video evidence without changing algorithm semantics.
+"""Run and validate long-video results without changing algorithm semantics.
 
-The runner delegates to ``scripts/run_heatmap_tool.py`` so the accepted G1/R1/O2
-guards remain authoritative.  It adds evaluation-only wall-clock, processing-ratio,
+The runner delegates to ``scripts/run_heatmap_tool.py`` so the core assignment,
+tracking-lifecycle, and optical-flow guards remain authoritative. It adds evaluation-only wall-clock, processing-ratio,
 file-size, provenance, and participant/run-matrix records.
 """
 
@@ -47,7 +47,7 @@ EVENT_REVIEW_FIELDS = (
 
 
 class MetricsValidationError(ValueError):
-    """Raised when an L1 summary violates the frozen evaluation contract."""
+    """Raised when a long-video summary violates the evaluation contract."""
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -103,7 +103,7 @@ def validate_face_core(core: dict[str, Any]) -> dict[str, Any]:
     if audit.get("static_dynamic_canonical_audit_source_set_passed") is not True:
         raise MetricsValidationError("Face canonical/audit source-set check failed")
     if parameters.get("history_mode") != "cumulative":
-        raise MetricsValidationError("L1 face evidence must use cumulative history")
+        raise MetricsValidationError("Long-video face results must use cumulative history")
     assigned = _required_int(counts, "assigned_unique_source_rows")
     inside = _required_int(counts, "accepted_inside_face_unique_samples")
     outside = _required_int(counts, "rejected_outside_face_unique_samples")
@@ -149,9 +149,9 @@ def validate_flow_core(core: dict[str, Any]) -> dict[str, Any]:
     if core.get("schema_version") != "optical_flow_event_semantics.v2":
         raise MetricsValidationError("Flow core is not optical_flow_event_semantics.v2")
     if core.get("history_mode") != "window":
-        raise MetricsValidationError("L1 flow evidence must use recent-window history")
+        raise MetricsValidationError("Long-video flow results must use recent-window history")
     if "shot_boundary" in core or "shot_boundary" in core.get("event_counts", {}):
-        raise MetricsValidationError("Active L1 flow evidence contains legacy shot_boundary")
+        raise MetricsValidationError("Active long-video flow results contain legacy shot_boundary")
     terminations = core.get("termination_counts", {})
     for key in FLOW_TERMINATION_KEYS:
         _required_int(terminations, key)
@@ -205,13 +205,13 @@ def validate_l1_summary(summary: dict[str, Any], *, require_completed: bool = Tr
         if summary.get("schema_version") != SCHEMA_VERSION:
             raise MetricsValidationError(f"Expected {SCHEMA_VERSION}")
         if summary.get("evidence_class") != "new_long_run":
-            raise MetricsValidationError("L1 run must be explicitly labelled new_long_run")
+            raise MetricsValidationError("Long-video run must be explicitly labelled new_long_run")
         status = summary.get("status")
         if require_completed and status != "completed":
             raise MetricsValidationError(f"Run is not completed: {status}")
         method = summary.get("method")
         if method not in {"face", "flow"}:
-            raise MetricsValidationError("L1 primary method must be face or flow")
+            raise MetricsValidationError("Long-video primary method must be face or flow")
         runtime = summary.get("runtime", {})
         if status == "completed":
             wall = float(runtime.get("wall_seconds", 0))
@@ -533,7 +533,7 @@ def validate_command(args: argparse.Namespace) -> int:
         if tool_summary_path:
             errors.extend(validate_tool_manifest(read_json(Path(tool_summary_path))))
         else:
-            errors.append("L1 summary has no tool_run_summary provenance")
+            errors.append("Long-video summary has no tool_run_summary provenance")
         records.append({"path": str(path), "run_id": summary.get("run_id"), "status": summary.get("status"), "errors": errors})
         failed = failed or bool(errors)
     report = {
@@ -604,7 +604,7 @@ def aggregate_command(args: argparse.Namespace) -> int:
         summary = read_json(path)
         errors = validate_l1_summary(summary, require_completed=False)
         if errors:
-            raise MetricsValidationError(f"Invalid L1 summary {path}: {'; '.join(errors)}")
+            raise MetricsValidationError(f"Invalid long-video summary {path}: {'; '.join(errors)}")
         metrics = summary.get("metrics", {})
         rows.append(
             {
@@ -734,7 +734,7 @@ def review_continuous_command(args: argparse.Namespace) -> int:
 
 
 def make_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="L1 long-video runner, validator, and participant matrix builder")
+    parser = argparse.ArgumentParser(description="Long-video runner, validator, and participant matrix builder")
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run")
     run.add_argument("--participant", choices=("P2", "P3", "P4", "P5"), required=True)

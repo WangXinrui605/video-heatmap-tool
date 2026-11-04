@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate accepted B1/G1/O2/R1 evidence without running core algorithms."""
+"""Aggregate baseline, face-relative, optical-flow, and lifecycle results without running core algorithms."""
 
 from __future__ import annotations
 
@@ -64,15 +64,15 @@ def accepted_round_trip_rows(records: Iterable[dict[str, Any]]) -> list[dict[str
 def validate_face(summary: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any]:
     assignment = summary.get("accumulation_sample_assignment", {})
     if assignment.get("schema_version") != "gaze_assignment.v1":
-        raise ValueError("face summary is not G1 corrected gaze_assignment.v1 evidence")
+        raise ValueError("face summary does not use the required unique-source-row assignment schema")
     duplicate = assignment.get("duplicate_consumption_check", {})
     consistency = assignment.get("audit_consistency_check", {})
     if not duplicate.get("passed") or duplicate.get("duplicate_consumption_excess") != 0:
         raise ValueError("duplicate-consumption check failed")
     if not consistency.get("coverage_partition_passed"):
-        raise ValueError("G1 audit coverage partition failed")
+        raise ValueError("face-assignment coverage partition failed")
     if not consistency.get("static_dynamic_canonical_audit_source_set_passed"):
-        raise ValueError("G1 static/dynamic/canonical/audit source sets differ")
+        raise ValueError("face static/dynamic/canonical/audit source sets differ")
 
     counts = summary["counts"]
     selected = int(counts["selected_valid_source_rows"])
@@ -110,7 +110,7 @@ def validate_face(summary: dict[str, Any], audit: dict[str, Any]) -> dict[str, A
 
 def validate_flow(summary: dict[str, Any]) -> None:
     if summary.get("schema_version") != "optical_flow_event_semantics.v2":
-        raise ValueError("flow evidence must use O2 v2 semantics, not legacy shot-boundary evidence")
+        raise ValueError("flow results must use the current event schema, not legacy shot-boundary semantics")
     if summary.get("history_mode") != "window":
         raise ValueError("formal flow comparison must use recent-window history")
     terminations = summary.get("termination_counts", {})
@@ -191,8 +191,8 @@ def build_evaluation(
         "schema_version": "comparative_evaluation.v1",
         "primary_segment": {"participant": "P4", "start_frame": interval[0], "end_frame_exclusive": interval[1]},
         "evidence_policy": {
-            "face_source": "G1 corrected unique-source-row evidence only",
-            "superseded_evidence_excluded": "old H1/R1 frame-assignment counts",
+            "face_source": "unique-source-row assignment results only",
+            "superseded_evidence_excluded": "older frame-assignment counts",
             "heat_intensity_ranked_across_methods": False,
         },
         "common_sample_set": {
@@ -207,7 +207,7 @@ def build_evaluation(
             },
             "face_coverage_ratio": face["coverage"]["face_coverage_ratio"],
         },
-        "g1_integrity": {
+        "assignment_integrity": {
             "maximum_samples_assigned_to_one_frame": face["accumulation_sample_assignment"]["maximum_samples_assigned_to_one_frame"],
             "duplicate_consumption_check": face["accumulation_sample_assignment"]["duplicate_consumption_check"],
             "round_trip_accepted_count": len(face_check["round_trip_rows"]),
@@ -309,8 +309,8 @@ def main() -> None:
         "out_dir": str(args.out_dir),
         "common_unique_rows": len(common),
         "accepted_round_trip_rows": len(round_trip),
-        "round_trip_mean_pixels": result["g1_integrity"]["round_trip_mean_pixels"],
-        "round_trip_max_pixels": result["g1_integrity"]["round_trip_max_pixels"],
+        "round_trip_mean_pixels": result["assignment_integrity"]["round_trip_mean_pixels"],
+        "round_trip_max_pixels": result["assignment_integrity"]["round_trip_max_pixels"],
     }, indent=2))
 
 
