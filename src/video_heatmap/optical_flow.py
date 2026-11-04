@@ -373,6 +373,21 @@ def advance_event_policy(
     return EventPolicyTransition(state=state, action="no_reset")
 
 
+def expired_trajectory_mask(
+    sample_times: np.ndarray, frame_time: float, window_seconds: float
+) -> np.ndarray:
+    if window_seconds <= 0:
+        raise ValueError("window_seconds must be positive.")
+    return np.asarray(sample_times, dtype=float) < float(frame_time) - float(window_seconds)
+
+
+def next_technical_segment_id(current_id: int, confirmed_hard_cut: bool) -> int:
+    """Automatic candidates never split technical segments."""
+    if current_id < 0:
+        raise ValueError("current_id must be non-negative.")
+    return current_id + int(bool(confirmed_hard_cut))
+
+
 def bilinear_sample_flow(
     flow: np.ndarray,
     points: np.ndarray,

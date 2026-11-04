@@ -1,109 +1,97 @@
 # Video Heatmap Tool for Gaze Data
 
-This repository contains an early Python prototype for my dissertation project. The project aims to generate heatmap visualisations from eye-tracking gaze data and scene camera videos.
+A Python tool for visualising eye-tracking gaze data over scene-camera video.
+It provides a command-line workflow and a Windows desktop interface for producing
+screen-space, face-relative, marker-relative, and optical-flow heatmaps.
 
-The current prototype focuses on the `Face-to-Face` part of the provided demo data. It uses the Dikablis `.txt` gaze data files and the matching scene camera videos. The JSON files in the `Augmented Reality` folder are outside the first version of the project.
+## What is included
 
-## Current Status
+- Reusable Python package in `src/video_heatmap/`.
+- Command-line scripts for generating overlays, static heatmaps, and videos.
+- A PySide6 desktop application for the baseline, face-relative, and optical-flow
+  workflows.
+- Automated tests for the processing pipeline and desktop-app components.
+- One small, non-sensitive example image in `outputs/sample_images/`.
 
-Implemented so far:
+Research data, model weights, generated videos, personal working notes, and
+dissertation materials are deliberately excluded from this repository.
 
-- participant-level gaze and video inspection;
-- loading and filtering gaze coordinates from `.txt` files;
-- matching gaze samples to scene camera video time using `rec_time`;
-- red-point gaze overlay video for checking the mapping;
-- frame extraction for manual checking;
-- static heatmap image generation for a selected frame range;
-- cumulative heatmap development video generation.
+## Methods
 
-Still to do:
+| Method | Purpose | Main output |
+| --- | --- | --- |
+| Baseline | Cumulative gaze heatmap in the original video coordinate system. | Static image and development video |
+| Face-relative | Maps gaze inside a selected face bounding box to a canonical face canvas. | Static/dynamic overlays and JSON summary |
+| Optical flow | Propagates a recent window of gaze points using dense optical flow. | Windowed overlay video and JSON summary |
+| Marker-relative | Maps gaze to a planar marker coordinate system. This is available through the CLI. | Marker heatmap video and JSON summary |
 
-- more testing with P3, P4, and P5;
-- clearer configuration options;
-- later, a simple interface aligned with the existing Unity tool.
+The face-relative workflow uses either OpenCV YuNet or OpenCV DNN SSD. Detection
+loss and multiple-face frames are recorded explicitly; they are not treated as
+successful face-relative observations. Optical flow is an experimental visual
+comparison method, not object recognition or long-term identity tracking.
 
-## Project Structure
+## Requirements
 
-```text
-video-heatmap-tool/
-|-- src/video_heatmap/        reusable project code
-|-- scripts/                  command-line scripts for running each step
-|-- outputs/sample_images/    small example images for GitHub
-|-- data/                     local data only, ignored by Git
-|-- docs/                     local notes only, ignored by Git
-|-- README.md
-|-- requirements.txt
-`-- .gitignore
-```
+- Python 3.10 or later
+- A local gaze-data text file and the matching scene-camera video
 
-## Setup
-
-Create or activate a Python environment, then install the dependencies:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The main packages used are:
+## Data layout
 
-- `pandas` for reading the gaze data table;
-- `numpy` for numerical processing;
-- `opencv-python-headless` for video reading, video writing, and image overlays.
-
-## Data
-
-The demo data is not included in this repository because it is large and may contain research data.
-
-Expected local folder structure:
+The source recordings are not included. Keep them locally, for example:
 
 ```text
-data/Face-to-Face/
-|-- P2/
-|-- P3/
-|-- P4/
-`-- P5/
+data/Face-to-Face/P2/
+├── participant_gaze.txt
+└── scene_camera.mp4
 ```
 
-Each participant folder should contain a gaze `.txt` file and the matching scene camera video files.
+## Quick start
 
-## Main Scripts
-
-Inspect one participant:
+Generate a baseline static heatmap:
 
 ```bash
-python scripts/inspect_participant.py --participant-dir "data/Face-to-Face/P2" --out-dir "outputs/P2_inspection"
+python scripts/generate_final_heatmap.py \
+  --gaze "data/Face-to-Face/P2/participant_gaze.txt" \
+  --video "data/Face-to-Face/P2/scene_camera.mp4" \
+  --out-dir "outputs/baseline" \
+  --start-frame 0 --end-frame 300
 ```
 
-Generate a short red-point overlay video:
+Launch the desktop application on Windows:
 
 ```bash
-python scripts/generate_gaze_overlay.py --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" --out-dir "outputs/P2_overlay" --start-frame 0 --end-frame 300
+python scripts/launch_heatmap_tool.py
 ```
 
-Extract still frames from a video:
+To use the face-relative method, download a compatible face-detector model
+locally and supply its path in the application or script. Model files are not
+bundled here because their distribution terms must be checked separately.
+
+## Testing
 
 ```bash
-python scripts/extract_video_frames.py --video "outputs/P2_overlay/gaze_overlay_sample.mp4" --out-dir "outputs/P2_overlay_frames" --frames 1 50 100 150 200 250
+pytest -q
 ```
 
-Generate a static heatmap image:
+## Repository layout
 
-```bash
-python scripts/generate_final_heatmap.py --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" --out-dir "outputs/P2_final_heatmap_1000" --start-frame 0 --end-frame 1000 --brush-size 40 --opacity 0.55
+```text
+src/video_heatmap/       Core processing and desktop-application code
+scripts/                 Command-line entry points and evaluation utilities
+tests/                   Automated tests and lightweight fixtures
+outputs/sample_images/   Example image safe to publish
+data/                    Local research data (ignored)
 ```
 
-Generate a cumulative heatmap development video:
+## Scope and limitations
 
-```bash
-python scripts/generate_heatmap_video.py --gaze "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_CsvData.txt" --video "data/Face-to-Face/P2/P2_2. Recording 13.09.2024 115435_Dikablis Glasses 3_Scene Cam.mp4" --out-dir "outputs/P2_heatmap_video_1000" --start-frame 0 --end-frame 1000 --brush-size 40 --opacity 0.55 --frame-skip 1
-```
-
-`--frame-skip` can be increased for faster test outputs. For example, `--frame-skip 5` writes every fifth frame and lowers the output FPS so the video still plays at approximately the original speed.
-
-## Current Notes
-
-The `.txt` gaze data files contain more rows than the scene camera videos have frames. For example, P2 has 30,568 gaze rows, while the scene camera video has 6,981 frames. The prototype therefore does not assume that row number equals frame number. It currently uses `rec_time` to select gaze samples for a video time range.
-
-For the current demo data, gaze points at `(0,0)` are treated as invalid. I checked examples in the reference eye-tracking videos and these periods appear to show no gaze marker rather than a real gaze point.
-
-The static heatmap is currently an image-coordinate heatmap. Since the scene camera is head-mounted, objects can move within the frame over time. The static heatmap is useful for showing the overall gaze distribution in the video image, but it should be interpreted together with the planned heatmap development video.
+This repository is a software demonstration, not a dataset release. Results
+depend on the local video, gaze calibration, selected time range, detector model,
+and processing parameters. The tool does not establish gaze accuracy, detector
+accuracy, identity recognition, clinical validity, or general usability.

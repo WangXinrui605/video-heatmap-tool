@@ -74,6 +74,21 @@ class RegionAccumulatorTests(unittest.TestCase):
         self.assertEqual(accumulator.active_sample_count, 1)
         self.assertEqual(accumulator.total_accepted, 2)
 
+    def test_cumulative_and_window_keep_multiple_samples_on_same_frame(self) -> None:
+        for mode, window_frames in (("cumulative", None), ("window", 3)):
+            with self.subTest(mode=mode):
+                accumulator = RegionHeatmapAccumulator(
+                    33,
+                    33,
+                    radius=2,
+                    history_mode=mode,
+                    window_frames=window_frames,
+                )
+                accumulator.add((0.25, 0.25), frame_index=4)
+                accumulator.add((0.75, 0.75), frame_index=4)
+                self.assertEqual(accumulator.total_accepted, 2)
+                self.assertEqual(accumulator.active_sample_count, 2)
+
     def test_overlay_changes_only_clipped_region(self) -> None:
         frame = np.full((20, 30, 3), 80, dtype=np.uint8)
         canvas = np.zeros((8, 8), dtype=np.float32)

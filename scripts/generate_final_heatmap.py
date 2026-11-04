@@ -9,7 +9,8 @@ from time import perf_counter
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from video_heatmap.gaze_loader import load_gaze_txt, summarize_gaze
-from video_heatmap.heatmap import build_final_heatmap, normalize_to_uint8
+from video_heatmap.heatmap import build_final_heatmap, overlay_heatmap
+from video_heatmap.rendering import HeatmapGradient, rendering_summary, resolve_heat_scale, scale_heatmap
 from video_heatmap.time_range import resolve_selected_range
 from video_heatmap.video_io import get_video_info, require_cv2
 
@@ -25,15 +26,6 @@ def read_background_frame(video_path: str, frame_index: int):
     return frame
 
 
-def overlay_heatmap(background, heatmap_uint8, opacity: float):
-    cv2 = require_cv2()
-    color_heatmap = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
-    alpha = (heatmap_uint8.astype("float32") / 255.0) * float(opacity)
-    alpha = alpha[:, :, None]
-    blended = background.astype("float32") * (1.0 - alpha) + color_heatmap.astype("float32") * alpha
-    return blended.clip(0, 255).astype("uint8"), color_heatmap
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gaze", required=True)
@@ -45,6 +37,9 @@ def main() -> None:
     parser.add_argument("--end-time", type=float, default=None)
     parser.add_argument("--brush-size", type=int, default=40)
     parser.add_argument("--opacity", type=float, default=0.55)
+    parser.add_argument("--gradient", choices=[item.value for item in HeatmapGradient], default="jet")
+    parser.add_argument("--heat-scale-mode", choices=("auto", "fixed"), default="auto")
+    parser.add_argument("--heat-scale-maximum", type=float)
     args = parser.parse_args()
     started_at = perf_counter()
 
@@ -76,10 +71,14 @@ def main() -> None:
 
     points = selected[["gaze_x", "gaze_y"]].to_numpy()
     heatmap = build_final_heatmap(points, video_info.width, video_info.height, args.brush_size)
-    heatmap_uint8 = normalize_to_uint8(heatmap)
+    try:
+        heat_scale = resolve_heat_scale(args.heat_scale_mode, args.heat_scale_maximum)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    heatmap_uint8, resolved_maximum = scale_heatmap(heatmap, heat_scale)
 
     background_frame = read_background_frame(args.video, selected_range.start_frame)
-    overlay, color_heatmap = overlay_heatmap(background_frame, heatmap_uint8, args.opacity)
+    overlay, color_heatmap = overlay_heatmap(background_frame, heatmap_uint8, args.opacity, args.gradient)
 
     heatmap_gray_path = out_dir / "final_heatmap_gray.png"
     heatmap_color_path = out_dir / "final_heatmap_color.png"
@@ -100,6 +99,7 @@ def main() -> None:
         "parameters": {
             "brush_size": args.brush_size,
             "opacity": args.opacity,
+            "rendering": rendering_summary(args.gradient, heat_scale, resolved_maximum=resolved_maximum),
         },
         "video_info": {
             "width": video_info.width,

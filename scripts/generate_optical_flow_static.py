@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 from pathlib import Path
 import sys
@@ -11,120 +10,45 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from video_heatmap.gaze_loader import load_gaze_txt
-from video_heatmap.heatmap import (
-    build_final_heatmap,
-    normalize_with_max,
-    overlay_heatmap,
-)
+from video_heatmap.heatmap import build_final_heatmap, normalize_with_max, overlay_heatmap
 from video_heatmap.optical_flow import (
-    FarnebackConfig,
-    calculate_flow_pair,
-    group_gaze_by_frame,
-    is_shot_boundary,
-    load_manual_boundaries,
-    propagate_points,
-    resolve_frame_range,
-    summarize_numbers,
+    AUTOMATIC_EVENT_LABEL, O2_SCHEMA_VERSION, EventPolicyState, FarnebackConfig,
+    advance_event_policy, calculate_flow_pair, group_gaze_by_frame,
+    is_visual_discontinuity_candidate, load_event_annotations, load_manual_boundaries,
+    next_technical_segment_id, propagate_points, resolve_frame_range, summarize_numbers,
 )
 from video_heatmap.video_io import get_video_info, require_cv2
 
 
-def write_shot_outputs(
-    cv2,
-    shot_dir: Path,
-    shot_index: int,
-    start_frame: int,
-    end_frame: int,
-    key_frame: np.ndarray,
-    original_points: np.ndarray,
-    compensated_points: np.ndarray,
-    brush_size: int,
-    opacity: float,
-) -> tuple[dict, np.ndarray]:
-    prefix = f"shot_{shot_index:03d}_{start_frame:06d}_{end_frame:06d}"
-    screen_heatmap = build_final_heatmap(
-        original_points, key_frame.shape[1], key_frame.shape[0], brush_size
-    )
-    compensated_heatmap = build_final_heatmap(
-        compensated_points, key_frame.shape[1], key_frame.shape[0], brush_size
-    )
-    common_max = max(
-        float(np.max(screen_heatmap)) if screen_heatmap.size else 0.0,
-        float(np.max(compensated_heatmap)) if compensated_heatmap.size else 0.0,
-    )
-    screen_uint8 = normalize_with_max(screen_heatmap, common_max)
-    compensated_uint8 = normalize_with_max(compensated_heatmap, common_max)
-    screen_overlay, _ = overlay_heatmap(key_frame, screen_uint8, opacity)
-    compensated_overlay, _ = overlay_heatmap(
-        key_frame, compensated_uint8, opacity
-    )
-    comparison = cv2.hconcat([screen_overlay, compensated_overlay])
-    cv2.putText(
-        comparison,
-        "screen-space",
-        (24, 42),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-    cv2.putText(
-        comparison,
-        "motion-compensated",
-        (key_frame.shape[1] + 24, 42),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-
-    key_path = shot_dir / f"{prefix}_key_frame.jpg"
-    screen_path = shot_dir / f"{prefix}_screen_space.png"
-    compensated_path = shot_dir / f"{prefix}_motion_compensated.png"
-    comparison_path = shot_dir / f"{prefix}_comparison.jpg"
-    cv2.imwrite(str(key_path), key_frame)
-    cv2.imwrite(str(screen_path), screen_overlay)
-    cv2.imwrite(str(compensated_path), compensated_overlay)
-    cv2.imwrite(str(comparison_path), comparison)
-    return (
-        {
-            "shot_index": shot_index,
-            "start_frame": start_frame,
-            "end_frame_inclusive": end_frame,
-            "key_frame": end_frame,
-            "original_gaze_count": int(len(original_points)),
-            "compensated_gaze_count": int(len(compensated_points)),
-            "key_frame_path": str(key_path),
-            "screen_space_path": str(screen_path),
-            "motion_compensated_path": str(compensated_path),
-            "comparison_path": str(comparison_path),
-        },
-        comparison,
-    )
-
-
-def make_contact_sheet(cv2, comparisons: list[np.ndarray], path: Path) -> None:
-    if not comparisons:
-        return
-    thumbs = []
-    for image in comparisons[:100]:
-        width = 960
-        height = max(1, int(round(image.shape[0] * width / image.shape[1])))
-        thumbs.append(cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA))
-    if len(thumbs) % 2:
-        thumbs.append(np.zeros_like(thumbs[-1]))
-    rows = [cv2.hconcat(thumbs[index : index + 2]) for index in range(0, len(thumbs), 2)]
-    cv2.imwrite(str(path), cv2.vconcat(rows))
+def write_interval(cv2, out_dir: Path, technical_id: int, flow_id: int,
+                   start: int, end: int, key_frame: np.ndarray,
+                   originals: np.ndarray, compensated: np.ndarray,
+                   brush: int, opacity: float) -> dict:
+    prefix = f"technical_segment_{technical_id:03d}_flow_interval_{flow_id:03d}"
+    screen = build_final_heatmap(originals, key_frame.shape[1], key_frame.shape[0], brush)
+    motion = build_final_heatmap(compensated, key_frame.shape[1], key_frame.shape[0], brush)
+    common_max = max(float(np.max(screen)) if screen.size else 0.0,
+                     float(np.max(motion)) if motion.size else 0.0)
+    screen_overlay, _ = overlay_heatmap(key_frame, normalize_with_max(screen, common_max), opacity)
+    motion_overlay, _ = overlay_heatmap(key_frame, normalize_with_max(motion, common_max), opacity)
+    comparison = cv2.hconcat([screen_overlay, motion_overlay])
+    cv2.putText(comparison, "screen-space", (20, 38), cv2.FONT_HERSHEY_SIMPLEX,
+                0.9, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(comparison, "flow interval diagnostic", (key_frame.shape[1] + 20, 38),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+    path = out_dir / f"{prefix}_comparison.jpg"
+    cv2.imwrite(str(path), comparison)
+    return {
+        "technical_segment_id": technical_id, "flow_interval_id": flow_id,
+        "start_frame": start, "end_frame_inclusive": end, "key_frame": end,
+        "original_gaze_count": int(len(originals)),
+        "compensated_gaze_count": int(len(compensated)), "comparison_path": str(path),
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description=(
-            "Generate paper-style Farneback motion-compensated static heatmaps. "
-            "Ranges crossing cuts are split into one output per shot."
-        )
+        description="Generate O2 static diagnostics split only by confirmed cuts/flow intervals."
     )
     parser.add_argument("--gaze", required=True)
     parser.add_argument("--video", required=True)
@@ -134,211 +58,154 @@ def main() -> None:
     parser.add_argument("--start-time", type=float)
     parser.add_argument("--end-time", type=float)
     parser.add_argument("--flow-scale", type=float, default=0.125)
-    parser.add_argument(
-        "--fb-threshold",
-        type=float,
-        default=12.0,
-        help="Full-resolution pixel threshold; use 0 to disable the project extension.",
-    )
+    parser.add_argument("--fb-threshold", type=float, default=12.0)
     parser.add_argument("--shot-threshold", type=float, default=0.03)
     parser.add_argument("--shot-hist-threshold", type=float, default=0.15)
     parser.add_argument("--manual-boundaries")
+    parser.add_argument("--event-annotations")
+    parser.add_argument("--event-policy", choices=["candidate-only", "flow-loss"], default="candidate-only")
+    parser.add_argument("--recovery-stable-frames", type=int, default=3)
+    parser.add_argument("--no-auto-event", action="store_true")
     parser.add_argument("--brush-size", type=int, default=40)
     parser.add_argument("--opacity", type=float, default=0.55)
     args = parser.parse_args()
+    if args.recovery_stable_frames < 1:
+        raise SystemExit("--recovery-stable-frames must be at least 1.")
 
-    if args.brush_size < 1:
-        raise SystemExit("--brush-size must be positive.")
-    if not 0.0 <= args.opacity <= 1.0:
-        raise SystemExit("--opacity must be between 0 and 1.")
-
-    video_info = get_video_info(args.video)
-    try:
-        frame_range = resolve_frame_range(
-            video_info,
-            start_frame=args.start_frame,
-            end_frame=args.end_frame,
-            start_time=args.start_time,
-            end_time=args.end_time,
-        )
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-
-    gaze = load_gaze_txt(
-        args.gaze, video_width=video_info.width, video_height=video_info.height
+    info = get_video_info(args.video)
+    frame_range = resolve_frame_range(
+        info, start_frame=args.start_frame, end_frame=args.end_frame,
+        start_time=args.start_time, end_time=args.end_time,
     )
-    selected = gaze.dataframe[
-        gaze.dataframe["valid"] & gaze.dataframe["time_seconds"].notna()
-    ].copy()
-    selected = selected[
-        (selected["time_seconds"] >= frame_range.start_time)
-        & (selected["time_seconds"] <= frame_range.end_time)
-    ]
+    gaze = load_gaze_txt(args.gaze, video_width=info.width, video_height=info.height)
+    selected = gaze.dataframe[gaze.dataframe["valid"] & gaze.dataframe["time_seconds"].notna()].copy()
+    selected = selected[(selected["time_seconds"] >= frame_range.start_time)
+                        & (selected["time_seconds"] <= frame_range.end_time)]
     if selected.empty:
         raise SystemExit("No valid gaze samples in the selected range.")
-    grouped = group_gaze_by_frame(
-        selected["time_seconds"].to_numpy(dtype=float),
-        selected[["gaze_x", "gaze_y"]].to_numpy(dtype=np.float32),
-        video_info.fps,
-        frame_range,
-    )
-
+    grouped = group_gaze_by_frame(selected["time_seconds"].to_numpy(float),
+                                  selected[["gaze_x", "gaze_y"]].to_numpy(np.float32),
+                                  info.fps, frame_range)
     out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    shot_dir = out_dir / "static_heatmaps"
-    shot_dir.mkdir(parents=True, exist_ok=True)
+    interval_dir = out_dir / "static_intervals"
+    interval_dir.mkdir(parents=True, exist_ok=True)
+    manual = load_manual_boundaries(args.manual_boundaries)
+    reviewed = load_event_annotations(args.event_annotations)
     config = FarnebackConfig(scale=args.flow_scale)
     fb_threshold = None if args.fb_threshold <= 0 else args.fb_threshold
-    manual = load_manual_boundaries(args.manual_boundaries)
     cv2 = require_cv2()
     cap = cv2.VideoCapture(args.video)
-    if not cap.isOpened():
-        raise SystemExit(f"Could not open video: {args.video}")
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_range.start_frame)
     ok, previous = cap.read()
     if not ok:
-        cap.release()
         raise SystemExit("Could not read first selected frame.")
 
-    first_background = previous.copy()
-    active = grouped.get(
-        frame_range.start_frame, np.empty((0, 2), dtype=np.float32)
-    ).copy()
+    active = grouped.get(frame_range.start_frame, np.empty((0, 2), np.float32)).copy()
     originals = active.copy()
-    shot_start = frame_range.start_frame
-    shot_index = 0
-    shot_records: list[dict] = []
-    comparisons: list[np.ndarray] = []
-    boundaries: list[dict] = []
+    policy_state = EventPolicyState()
+    technical_id = 0
+    interval_start = frame_range.start_frame
+    records: list[dict] = []
+    events: list[dict] = []
     fb_errors: list[float] = []
-    terminated = 0
+    termination_counts = {"window_expired": 0, "flow_or_bounds": 0,
+                          "flow_tracking_lost": 0, "confirmed_hard_cut": 0}
 
-    for current_index in range(frame_range.start_frame + 1, frame_range.end_frame):
+    for frame in range(frame_range.start_frame + 1, frame_range.end_frame):
         ok, current = cap.read()
         if not ok:
             break
         pair = calculate_flow_pair(previous, current, config)
-        is_manual = current_index in manual
-        is_boundary = is_manual or is_shot_boundary(
+        candidate = (not args.no_auto_event) and is_visual_discontinuity_candidate(
             pair, args.shot_threshold, args.shot_hist_threshold
         )
-        if is_boundary:
-            record, comparison = write_shot_outputs(
-                cv2,
-                shot_dir,
-                shot_index,
-                shot_start,
-                current_index - 1,
-                previous,
-                originals,
-                active,
-                args.brush_size,
-                args.opacity,
-            )
-            shot_records.append(record)
-            comparisons.append(comparison)
-            boundaries.append(
-                {
-                    "frame": current_index,
-                    "time_seconds": current_index / video_info.fps,
-                    "disturbance_score": pair.disturbance_score,
-                    "appearance_change_score": pair.appearance_change_score,
-                    "threshold": args.shot_threshold,
-                    "appearance_threshold": args.shot_hist_threshold,
-                    "source": "manual" if is_manual else "farneback_auto",
-                }
-            )
-            shot_index += 1
-            shot_start = current_index
-            active = np.empty((0, 2), dtype=np.float32)
-            originals = np.empty((0, 2), dtype=np.float32)
-        elif len(active):
-            result = propagate_points(
-                active,
-                pair,
-                video_info.width,
-                video_info.height,
-                fb_threshold,
-            )
+        annotation = reviewed.get(frame, {})
+        confirmed = frame in manual or bool(annotation.get("confirmed_hard_cut", False))
+        old_state = policy_state
+        transition = advance_event_policy(
+            policy_state, candidate=candidate, confirmed_hard_cut=confirmed,
+            event_policy=args.event_policy, recovery_stable_frames=args.recovery_stable_frames,
+        )
+        policy_state = transition.state
+        if candidate or confirmed:
+            events.append({
+                "frame": frame, "time_seconds": frame / info.fps,
+                "automatic_label": AUTOMATIC_EVENT_LABEL if candidate else "",
+                "reviewed_label": "confirmed_hard_cut" if confirmed else annotation.get("reviewed_label", "unreviewed"),
+                "action": transition.action, "confirmed_hard_cut": confirmed,
+                "technical_segment_id": technical_id,
+                "flow_interval_id": policy_state.flow_interval_id,
+                "loss_episode_id": policy_state.loss_episode_id,
+            })
+
+        if confirmed or transition.entered_loss:
+            records.append(write_interval(
+                cv2, interval_dir, technical_id, old_state.flow_interval_id,
+                interval_start, frame - 1, previous, originals, active,
+                args.brush_size, args.opacity,
+            ))
+            reason = "confirmed_hard_cut" if confirmed else "flow_tracking_lost"
+            termination_counts[reason] += len(active)
+            active = np.empty((0, 2), np.float32)
+            originals = np.empty((0, 2), np.float32)
+            if confirmed:
+                technical_id = next_technical_segment_id(technical_id, True)
+                interval_start = frame
+            else:
+                interval_start = -1
+        elif transition.recovered:
+            interval_start = frame
+        elif not policy_state.loss_active and len(active):
+            result = propagate_points(active, pair, info.width, info.height, fb_threshold)
+            termination_counts["flow_or_bounds"] += int(np.count_nonzero(~result.valid))
             fb_errors.extend(result.forward_backward_error[result.valid].tolist())
-            terminated += int(np.count_nonzero(~result.valid))
             active = result.points[result.valid]
 
-        new_points = grouped.get(current_index)
-        if new_points is not None:
-            active = np.vstack([active, new_points])
-            originals = np.vstack([originals, new_points])
+        if not policy_state.loss_active:
+            new = grouped.get(frame)
+            if new is not None:
+                active = np.vstack([active, new])
+                originals = np.vstack([originals, new])
         previous = current
     cap.release()
-
-    last_frame = frame_range.end_frame - 1
-    record, comparison = write_shot_outputs(
-        cv2,
-        shot_dir,
-        shot_index,
-        shot_start,
-        last_frame,
-        previous,
-        originals,
-        active,
-        args.brush_size,
-        args.opacity,
-    )
-    shot_records.append(record)
-    comparisons.append(comparison)
-
-    global_points = selected[["gaze_x", "gaze_y"]].to_numpy(dtype=np.float32)
-    global_heatmap = build_final_heatmap(
-        global_points, video_info.width, video_info.height, args.brush_size
-    )
-    global_uint8 = normalize_with_max(global_heatmap, float(np.max(global_heatmap)))
-    global_overlay, _ = overlay_heatmap(first_background, global_uint8, args.opacity)
-    global_path = out_dir / "global_screen_space_overlay.png"
-    cv2.imwrite(str(global_path), global_overlay)
-    contact_sheet_path = out_dir / "contact_sheet.jpg"
-    make_contact_sheet(cv2, comparisons, contact_sheet_path)
-
-    boundary_csv = out_dir / "shot_boundaries.csv"
-    with boundary_csv.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(
-            stream,
-            fieldnames=[
-                "frame",
-                "time_seconds",
-                "disturbance_score",
-                "appearance_change_score",
-                "threshold",
-                "appearance_threshold",
-                "source",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(boundaries)
+    if interval_start >= 0:
+        records.append(write_interval(
+            cv2, interval_dir, technical_id, policy_state.flow_interval_id,
+            interval_start, frame_range.end_frame - 1, previous, originals, active,
+            args.brush_size, args.opacity,
+        ))
 
     summary = {
-        "mode": "farneback_motion_compensated_static",
-        "global_screen_space_overlay": str(global_path),
-        "contact_sheet": str(contact_sheet_path),
-        "shot_boundaries_csv": str(boundary_csv),
-        "shots": shot_records,
-        "boundaries": boundaries,
-        "selected_range": frame_range.__dict__,
-        "selected_gaze_count": int(len(selected)),
-        "terminated_trajectories": terminated,
+        "schema_version": O2_SCHEMA_VERSION,
+        "mode": "farneback_short_clip_static_diagnostic",
+        "selected_range": frame_range.__dict__, "selected_gaze_count": int(len(selected)),
+        "static_intervals": records,
+        "event_counts": {
+            AUTOMATIC_EVENT_LABEL: sum(e["automatic_label"] == AUTOMATIC_EVENT_LABEL for e in events),
+            "reviewed_continuous_non_cut": sum(e["reviewed_label"] == "continuous_non_cut" for e in events),
+            "confirmed_hard_cut": sum(bool(e["confirmed_hard_cut"]) for e in events),
+            "uncertain_event": sum(e["reviewed_label"] == "uncertain" for e in events),
+        },
+        "events": events, "termination_counts": termination_counts,
+        "event_count_unit": "frame-level observations/reviewed events",
+        "termination_count_unit": "trajectories",
+        "technical_segment_count": technical_id + 1,
+        "flow_interval_count": policy_state.flow_interval_id + 1,
+        "loss_episode_count": 0 if policy_state.loss_episode_id is None else policy_state.loss_episode_id + 1,
         "forward_backward_errors": summarize_numbers(fb_errors),
         "parameters": {
-            "flow_scale": args.flow_scale,
-            "fb_threshold": fb_threshold,
+            "event_policy": args.event_policy,
+            "recovery_stable_frames": args.recovery_stable_frames,
+            "auto_event_enabled": not args.no_auto_event,
+            "flow_scale": args.flow_scale, "fb_threshold": fb_threshold,
             "shot_threshold": args.shot_threshold,
             "shot_hist_threshold": args.shot_hist_threshold,
-            "brush_size": args.brush_size,
-            "opacity": args.opacity,
+            "manual_boundaries": args.manual_boundaries,
+            "event_annotations": args.event_annotations,
         },
     }
     summary_path = out_dir / "optical_flow_static_summary.json"
-    summary_path.write_text(
-        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
 
 

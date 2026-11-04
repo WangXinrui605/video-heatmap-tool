@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from video_heatmap.gaze_loader import load_gaze_txt
 from video_heatmap.heatmap import add_brush, build_final_heatmap
 from video_heatmap.marker import distance_to_marker_square, discover_marker_columns
+from video_heatmap.rendering import HeatmapGradient, colorize, rendering_summary, resolve_heat_scale, scale_heatmap
 from video_heatmap.video_io import get_video_info, require_cv2
 
 
@@ -84,9 +85,10 @@ def overlay_warped_heatmap(
     local_heatmap_uint8: np.ndarray,
     canvas_to_screen: np.ndarray,
     opacity: float,
+    gradient: HeatmapGradient | str = HeatmapGradient.JET,
 ) -> np.ndarray:
     frame_size = (frame.shape[1], frame.shape[0])
-    local_color = cv2.applyColorMap(local_heatmap_uint8, cv2.COLORMAP_JET)
+    local_color = colorize(local_heatmap_uint8, gradient)
     screen_color = cv2.warpPerspective(
         local_color,
         canvas_to_screen,
@@ -141,6 +143,9 @@ def main() -> None:
         ),
     )
     parser.add_argument("--frame-skip", type=int, default=1)
+    parser.add_argument("--gradient", choices=[item.value for item in HeatmapGradient], default="jet")
+    parser.add_argument("--heat-scale-mode", choices=("auto", "fixed"), default="auto")
+    parser.add_argument("--heat-scale-maximum", type=float)
     parser.add_argument(
         "--debug-overlay",
         action="store_true",
@@ -161,6 +166,10 @@ def main() -> None:
         raise SystemExit("--max-marker-distance must be zero or positive.")
     if not 0.0 <= args.opacity <= 1.0:
         raise SystemExit("--opacity must be between 0 and 1.")
+    try:
+        heat_scale = resolve_heat_scale(args.heat_scale_mode, args.heat_scale_maximum)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     video_info = get_video_info(args.video)
     end_frame = min(args.end_frame, video_info.frame_count)
@@ -352,13 +361,15 @@ def main() -> None:
 
             if local_to_screen is not None and gaze_index > 0:
                 canvas_to_screen = local_to_screen @ canvas_to_local
-                heatmap_uint8 = normalize_with_max(heatmap, final_max)
+                frame_scale = heat_scale if heat_scale.mode.value == "fixed" else resolve_heat_scale("fixed", final_max)
+                heatmap_uint8, _ = scale_heatmap(heatmap, frame_scale)
                 frame = overlay_warped_heatmap(
                     cv2,
                     frame,
                     heatmap_uint8,
                     canvas_to_screen,
                     args.opacity,
+                    args.gradient,
                 )
                 frames_with_marker_projection += 1
                 status = f"{args.marker} marker heatmap"
@@ -545,6 +556,8 @@ def main() -> None:
             "max_marker_distance_units": args.max_marker_distance,
             "frame_skip": args.frame_skip,
             "output_fps": output_fps,
+            "output_update_interval_semantics": "write_every_nth_output_frame_only; all frames drive marker-local gaze accumulation",
+            "rendering": rendering_summary(args.gradient, heat_scale, resolved_maximum=(final_max if heat_scale.mode.value == "auto" else heat_scale.maximum)),
             "debug_overlay": args.debug_overlay,
         },
         "important_limitation": (

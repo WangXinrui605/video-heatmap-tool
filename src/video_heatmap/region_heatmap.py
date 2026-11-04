@@ -7,6 +7,7 @@ from typing import Iterable
 
 import numpy as np
 
+from .rendering import HeatmapGradient, HeatScale, colorize, scale_heatmap
 from .regions import RegionDetection
 
 
@@ -138,15 +139,16 @@ class RegionHeatmapAccumulator:
         self.total_accepted += 1
 
 
-def normalized_heatmap(canvas: np.ndarray) -> np.ndarray:
+def normalized_heatmap(
+    canvas: np.ndarray,
+    heat_scale: HeatScale | None = None,
+) -> np.ndarray:
     """Convert a floating-point canonical canvas to uint8."""
 
     if canvas.ndim != 2:
         raise ValueError("canvas must be a two-dimensional array")
-    maximum = float(np.nanmax(canvas)) if canvas.size else 0.0
-    if not isfinite(maximum) or maximum <= 0.0:
-        return np.zeros(canvas.shape, dtype=np.uint8)
-    return np.clip(canvas / maximum * 255.0, 0.0, 255.0).astype(np.uint8)
+    scaled, _ = scale_heatmap(canvas, heat_scale or HeatScale())
+    return scaled
 
 
 def overlay_region_heatmap(
@@ -155,6 +157,8 @@ def overlay_region_heatmap(
     box: RegionDetection,
     *,
     opacity: float = 0.55,
+    gradient: HeatmapGradient | str = HeatmapGradient.JET,
+    heat_scale: HeatScale | None = None,
 ) -> np.ndarray:
     """Resize a canonical heatmap into a box and blend only inside that box."""
 
@@ -179,9 +183,9 @@ def overlay_region_heatmap(
     if x1 <= x0 or y1 <= y0:
         return output
 
-    heat_uint8 = normalized_heatmap(canvas)
+    heat_uint8 = normalized_heatmap(canvas, heat_scale)
     resized = cv2.resize(heat_uint8, (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
-    colours = cv2.applyColorMap(resized, cv2.COLORMAP_JET)
+    colours = colorize(resized, gradient)
     alpha = resized.astype(np.float32)[:, :, None] / 255.0 * float(opacity)
     background = output[y0:y1, x0:x1].astype(np.float32)
     blended = background * (1.0 - alpha) + colours.astype(np.float32) * alpha

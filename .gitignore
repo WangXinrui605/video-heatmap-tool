@@ -12,15 +12,26 @@ Demo Data/
 *.avi
 *.mov
 
+# Private dissertation, evaluation, and working material
+docs/
+*.docx
+doc_edit/
+docx_qa/
+_docx_review/
+rendered/
+review_render/
+qa_language_style_revised/
+interactive_revision_rendered*/
+tmp*/
+.tmp/
+output/
+*.log
+
 # Generated outputs
 outputs/**/*
 !outputs/
 !outputs/sample_images/
 !outputs/sample_images/**
-
-# Local planning notes
-docs/project_plan.md
-docs/week1_week2_progress_summary.md
 
 # OS/editor files
 .DS_Store

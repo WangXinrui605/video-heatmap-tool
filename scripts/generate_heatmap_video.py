@@ -14,10 +14,11 @@ from video_heatmap.gaze_loader import load_gaze_txt, summarize_gaze
 from video_heatmap.heatmap import (
     add_brush,
     build_final_heatmap,
-    normalize_with_max,
     overlay_heatmap,
 )
+from video_heatmap.rendering import HeatmapGradient, rendering_summary, resolve_heat_scale, scale_heatmap
 from video_heatmap.time_range import resolve_selected_range
+from video_heatmap.tool_app.progress import ProgressEmitter
 from video_heatmap.video_io import get_video_info, require_cv2
 
 
@@ -33,11 +34,18 @@ def main() -> None:
     parser.add_argument("--brush-size", type=int, default=40)
     parser.add_argument("--opacity", type=float, default=0.55)
     parser.add_argument("--frame-skip", type=int, default=1)
+    parser.add_argument("--gradient", choices=[item.value for item in HeatmapGradient], default="jet")
+    parser.add_argument("--heat-scale-mode", choices=("auto", "fixed"), default="auto")
+    parser.add_argument("--heat-scale-maximum", type=float)
     args = parser.parse_args()
     started_at = perf_counter()
 
     if args.frame_skip < 1:
         raise SystemExit("--frame-skip must be 1 or higher.")
+    try:
+        heat_scale = resolve_heat_scale(args.heat_scale_mode, args.heat_scale_maximum)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     cv2 = require_cv2()
     out_dir = Path(args.out_dir)
@@ -72,6 +80,7 @@ def main() -> None:
     # Use the final maximum for all frames so the heatmap colours do not rescale every frame.
     final_heatmap = build_final_heatmap(gaze_points, video_info.width, video_info.height, args.brush_size)
     final_max = float(np.nanmax(final_heatmap)) if final_heatmap.size else 0.0
+    rendering_maximum = final_max if heat_scale.mode.value == "auto" else heat_scale.maximum
 
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
@@ -98,6 +107,11 @@ def main() -> None:
     read_frames = 0
     added_gaze_samples = 0
     frame_index = selected_range.start_frame
+    progress = ProgressEmitter.from_environment(
+        selected_range.end_frame_exclusive - selected_range.start_frame
+    )
+    if progress:
+        progress.emit(0, "preparing")
 
     while frame_index < selected_range.end_frame_exclusive:
         should_write_frame = (frame_index - selected_range.start_frame) % args.frame_skip == 0
@@ -117,16 +131,20 @@ def main() -> None:
             added_gaze_samples += 1
 
         if should_write_frame:
-            heatmap_uint8 = normalize_with_max(heatmap, final_max)
-            blended, _ = overlay_heatmap(frame, heatmap_uint8, args.opacity)
+            heatmap_uint8, _ = scale_heatmap(heatmap, resolve_heat_scale("fixed", rendering_maximum))
+            blended, _ = overlay_heatmap(frame, heatmap_uint8, args.opacity, args.gradient)
             writer.write(blended)
             written_frames += 1
 
         read_frames += 1
+        if progress:
+            progress.emit(read_frames, "processing")
         frame_index += 1
 
     cap.release()
     writer.release()
+    if progress and read_frames == progress.total:
+        progress.emit(read_frames, "finalising")
 
     summary = {
         "output_video": str(output_video_path),
@@ -140,6 +158,8 @@ def main() -> None:
             "opacity": args.opacity,
             "frame_skip": args.frame_skip,
             "output_fps": output_fps,
+            "output_update_interval_semantics": "write_every_nth_output_frame_only; all frames drive gaze assignment and accumulation",
+            "rendering": rendering_summary(args.gradient, heat_scale, resolved_maximum=rendering_maximum),
         },
         "video_info": {
             "width": video_info.width,

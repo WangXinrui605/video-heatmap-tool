@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .video_io import require_cv2
+from .rendering import HeatmapGradient, colorize
 
 
 def add_brush(heatmap: np.ndarray, x: float, y: float, radius: int, value: float = 1.0) -> None:
@@ -42,19 +42,22 @@ def normalize_with_max(heatmap: np.ndarray, max_value: float) -> np.ndarray:
     return np.clip((heatmap / float(max_value)) * 255.0, 0, 255).astype(np.uint8)
 
 
-def colorize_heatmap(heatmap_uint8: np.ndarray) -> np.ndarray:
-    """Apply OpenCV's JET colormap to a uint8 heatmap."""
-    cv2 = require_cv2()
-    return cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+def colorize_heatmap(
+    heatmap_uint8: np.ndarray,
+    gradient: HeatmapGradient | str = HeatmapGradient.JET,
+) -> np.ndarray:
+    """Apply the selected rendering-only colour map; JET remains the default."""
+    return colorize(heatmap_uint8, gradient)
 
 
 def overlay_heatmap(
     background: np.ndarray,
     heatmap_uint8: np.ndarray,
     opacity: float,
+    gradient: HeatmapGradient | str = HeatmapGradient.JET,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Blend a heatmap over a BGR frame using heat-dependent alpha."""
-    color_heatmap = colorize_heatmap(heatmap_uint8)
+    color_heatmap = colorize_heatmap(heatmap_uint8, gradient)
     alpha = (heatmap_uint8.astype(np.float32) / 255.0) * float(opacity)
     alpha = alpha[:, :, None]
     blended = (
